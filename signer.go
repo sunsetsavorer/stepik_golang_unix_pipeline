@@ -1,6 +1,10 @@
 package main
 
-import "sync"
+import (
+	"strconv"
+	"strings"
+	"sync"
+)
 
 // сюда писать код
 
@@ -52,12 +56,44 @@ func worker(unit *PipelineUnit, wg *sync.WaitGroup) {
 
 var SingleHash = func(in, out chan interface{}) {
 
+	for v := range in {
+
+		data := strconv.Itoa(v.(int))
+
+		crc := DataSignerCrc32(data)
+		md5 := DataSignerMd5(data)
+		crcFromMd5 := DataSignerCrc32(md5)
+
+		res := crc + "~" + crcFromMd5
+
+		out <- res
+	}
 }
 
 var MultiHash = func(in, out chan interface{}) {
 
+	for v := range in {
+
+		data := v.(string)
+		res := ""
+
+		for th := 0; th <= 5; th++ {
+
+			crc := DataSignerCrc32(strconv.Itoa(th) + data)
+			res += crc
+		}
+
+		out <- res
+	}
 }
 
 var CombineResults = func(in, out chan interface{}) {
 
+	arr := []string{}
+
+	for v := range in {
+		arr = append(arr, v.(string))
+	}
+
+	out <- strings.Join(arr, "_")
 }
