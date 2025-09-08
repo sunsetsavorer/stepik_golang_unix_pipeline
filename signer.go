@@ -58,21 +58,27 @@ func worker(unit *PipelineUnit, wg *sync.WaitGroup) {
 var SingleHash = func(in, out chan interface{}) {
 
 	wg := &sync.WaitGroup{}
+	cache := &sync.Map{}
 
 	for v := range in {
 		wg.Add(1)
 
-		go SingleHashWorker(v, wg, out)
+		go SingleHashWorker(v, wg, out, cache)
 	}
 
 	wg.Wait()
 }
 
-func SingleHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface{}) {
+func SingleHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface{}, cache *sync.Map) {
 
 	defer parentWG.Done()
 
 	data := strconv.Itoa(v.(int))
+
+	if value, ok := cache.Load(data); ok {
+		out <- value
+		return
+	}
 
 	wg := &sync.WaitGroup{}
 
@@ -100,41 +106,49 @@ func SingleHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interfac
 	res := crc + "~" + crcFromMd5
 
 	out <- res
+
+	cache.Store(data, res)
 }
 
 var MultiHash = func(in, out chan interface{}) {
 
 	wg := &sync.WaitGroup{}
+	cache := &sync.Map{}
 
 	for v := range in {
 		wg.Add(1)
 
-		go MultiHashWorker(v, wg, out)
+		go MultiHashWorker(v, wg, out, cache)
 	}
 
 	wg.Wait()
 }
 
-func MultiHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface{}) {
+func MultiHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface{}, cache *sync.Map) {
 
 	defer parentWG.Done()
 
 	data := v.(string)
 
-	syncMap := &sync.Map{}
+	if value, ok := cache.Load(data); ok {
+		out <- value
+		return
+	}
+
+	m := &sync.Map{}
 	wg := &sync.WaitGroup{}
 
 	for th := 0; th <= 5; th++ {
 		wg.Add(1)
 
-		go func(idx int, syncMap *sync.Map) {
+		go func(idx int, m *sync.Map) {
 
 			crc := DataSignerCrc32(strconv.Itoa(idx) + data)
 
-			syncMap.Store(idx, crc)
+			m.Store(idx, crc)
 
 			wg.Done()
-		}(th, syncMap)
+		}(th, m)
 	}
 
 	wg.Wait()
@@ -142,12 +156,14 @@ func MultiHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface
 	res := ""
 
 	for i := 0; i <= 5; i++ {
-		value, _ := syncMap.Load(i)
+		value, _ := m.Load(i)
 
 		res += value.(string)
 	}
 
 	out <- res
+
+	cache.Store(data, res)
 }
 
 var CombineResults = func(in, out chan interface{}) {
