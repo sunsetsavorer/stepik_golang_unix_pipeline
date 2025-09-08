@@ -121,24 +121,20 @@ func MultiHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface
 
 	data := v.(string)
 
-	mu := &sync.Mutex{}
+	syncMap := &sync.Map{}
 	wg := &sync.WaitGroup{}
-
-	m := make(map[int]string)
 
 	for th := 0; th <= 5; th++ {
 		wg.Add(1)
 
-		go func(idx int, m map[int]string) {
+		go func(idx int, syncMap *sync.Map) {
 
 			crc := DataSignerCrc32(strconv.Itoa(idx) + data)
 
-			mu.Lock()
-			m[idx] = crc
-			mu.Unlock()
+			syncMap.Store(idx, crc)
 
 			wg.Done()
-		}(th, m)
+		}(th, syncMap)
 	}
 
 	wg.Wait()
@@ -146,7 +142,9 @@ func MultiHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface
 	res := ""
 
 	for i := 0; i <= 5; i++ {
-		res += m[i]
+		value, _ := syncMap.Load(i)
+
+		res += value.(string)
 	}
 
 	out <- res
