@@ -58,27 +58,21 @@ func worker(unit *PipelineUnit, wg *sync.WaitGroup) {
 var SingleHash = func(in, out chan interface{}) {
 
 	wg := &sync.WaitGroup{}
-	cache := &sync.Map{}
 
 	for v := range in {
 		wg.Add(1)
 
-		go SingleHashWorker(v, wg, out, cache)
+		go SingleHashWorker(v, wg, out)
 	}
 
 	wg.Wait()
 }
 
-func SingleHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface{}, cache *sync.Map) {
+func SingleHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface{}) {
 
 	defer parentWG.Done()
 
 	data := strconv.Itoa(v.(int))
-
-	if value, ok := cache.Load(data); ok {
-		out <- value
-		return
-	}
 
 	wg := &sync.WaitGroup{}
 
@@ -106,34 +100,26 @@ func SingleHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interfac
 	res := crc + "~" + crcFromMd5
 
 	out <- res
-
-	cache.Store(data, res)
 }
 
 var MultiHash = func(in, out chan interface{}) {
 
 	wg := &sync.WaitGroup{}
-	cache := &sync.Map{}
 
 	for v := range in {
 		wg.Add(1)
 
-		go MultiHashWorker(v, wg, out, cache)
+		go MultiHashWorker(v, wg, out)
 	}
 
 	wg.Wait()
 }
 
-func MultiHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface{}, cache *sync.Map) {
+func MultiHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface{}) {
 
 	defer parentWG.Done()
 
 	data := v.(string)
-
-	if value, ok := cache.Load(data); ok {
-		out <- value
-		return
-	}
 
 	m := &sync.Map{}
 	wg := &sync.WaitGroup{}
@@ -162,8 +148,6 @@ func MultiHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface
 	}
 
 	out <- res
-
-	cache.Store(data, res)
 }
 
 var CombineResults = func(in, out chan interface{}) {
