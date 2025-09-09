@@ -57,21 +57,19 @@ func worker(unit *PipelineUnit, wg *sync.WaitGroup) {
 
 var SingleHash = func(in, out chan interface{}) {
 
-	blocker := make(chan struct{})
-
 	wg := &sync.WaitGroup{}
+	mu := &sync.Mutex{}
 
 	for v := range in {
 		wg.Add(1)
 
-		go SingleHashWorker(v, wg, out, blocker)
-		blocker <- struct{}{}
+		go SingleHashWorker(v, wg, out, mu)
 	}
 
 	wg.Wait()
 }
 
-func SingleHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface{}, blocker chan struct{}) {
+func SingleHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interface{}, mu *sync.Mutex) {
 
 	defer parentWG.Done()
 
@@ -86,9 +84,9 @@ func SingleHashWorker(v interface{}, parentWG *sync.WaitGroup, out chan interfac
 	wg.Add(2)
 
 	go func() {
+		mu.Lock()
 		md5 = DataSignerMd5(data)
-
-		<-blocker
+		mu.Unlock()
 
 		crcFromMd5 = DataSignerCrc32(md5)
 
